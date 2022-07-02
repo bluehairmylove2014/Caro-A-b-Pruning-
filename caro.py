@@ -262,7 +262,6 @@ class GAME: #option: 33 or 55 or 77
     #MAIN ALGORITHM
     def botTurn(self):
         x, y = self.AlphaBetaSearch()
-        print(x,'---',y)
         square = [x, y, pygame.Rect(
                         self.squareSize * y, 
                         self.squareSize * x,
@@ -272,10 +271,6 @@ class GAME: #option: 33 or 55 or 77
         self.add_a_chess(self.botPiece, square, BOT)
 
     def AlphaBetaSearch(self):
-        print(self.board)
-        print(self.states)
-        print('-----------------------------------------------')
-
         isSame, pos = self.checkTheSamePath(self.board, self.states)
         if isSame:
             return pos
@@ -284,16 +279,9 @@ class GAME: #option: 33 or 55 or 77
 
         a = float(-inf) # Alpha
         b = float(inf) # Beta
-        point = 0
-        self.pl = []
 
-        maxVar, ns = self.maxValue(self.states, a, b, point)
+        maxVar, ns = self.maxValue(self.states, a, b)
         self.states = ns
-
-        print(self.states)
-
-        print(np.max(np.array(self.pl)))
-        print('-----------------------------------------------')
 
         return (self.states[-1][0], self.states[-1][1])
 
@@ -301,25 +289,19 @@ class GAME: #option: 33 or 55 or 77
         if checkState == None:
             return (False, None)
         if (curState == checkState[2]).all():
-            print('same')
-            print(checkState[2])
             if(checkState[-1][0] != None):
                 return (True, (checkState[-1][0], checkState[-1][1]))
         else:
             return self.checkTheSamePath(curState, checkState[3])
 
-    def maxValue(self, curState, a, b, point):
+    def maxValue(self, curState, a, b):
         if curState[0] != None and curState[1] != None:
             if self.checkWin(curState[2], curState[0], curState[1], PLAYER) == WIN:
-                self.pl.append(point - 100)
-                return (point-100, curState)
+                return (-10, curState)
             elif self.checkWin(curState[2], curState[0], curState[1], PLAYER) == DRAW:
-                self.pl.append(point)
-                return (point, curState)
+                return (0, curState)
                 
         var = float(-inf)
-        point -= 1
-
 
         for ir, row in enumerate(curState[2]):
             for ic, col in enumerate(row):
@@ -328,27 +310,25 @@ class GAME: #option: 33 or 55 or 77
                     state[ir][ic] = 2
 
                     levelState = [ir, ic, state, None]
-                    maxVar, ns = self.minValue(levelState, a, b, point)
-                    if maxVar >= var:
+                    maxVar, ns = self.minValue(levelState, a, b)
+
+                    if maxVar > var:
                         var = maxVar
-                        if maxVar >= b:
-                            return (var, curState)
-                        elif maxVar >= a:
-                            a = maxVar
-                            curState[-1] = ns
-                    
+                        curState[-1] = ns
+                    if var >= b:
+                        return (var, curState)
+                    if var > a:
+                        a = var
+          
         return (var, curState)
 
-    def minValue(self, curState, a, b, point):
+    def minValue(self, curState, a, b):
         if self.checkWin(curState[2], curState[0], curState[1], BOT) == WIN:
-            self.pl.append(point + 100)
-            return (point+100, curState)
+            return (10, curState)
         elif self.checkWin(curState[2], curState[0], curState[1], BOT) == DRAW:
-            self.pl.append(point)
-            return (point, curState)
+            return (0, curState)
 
         var = float(inf)
-        point -= 1
 
         for ir, row in enumerate(curState[2]):
             for ic, col in enumerate(row):
@@ -357,14 +337,15 @@ class GAME: #option: 33 or 55 or 77
                     state[ir][ic] = 1
 
                     levelState = [ir, ic, state, None]
-                    minVar, ns = self.maxValue(levelState, a, b, point)
-                    if minVar <= var:
+                    minVar, ns = self.maxValue(levelState, a, b)
+
+                    if minVar < var:
                         var = minVar
-                        if minVar <= a:
-                            return (var, curState)
-                        elif minVar <= b:
-                            b = minVar
-                            curState[-1] = ns
+                        curState[-1] = ns
+                    if var <= a:
+                        return (var, curState)
+                    if var < b:
+                        b = var
 
         return (var, curState)
 
