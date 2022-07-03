@@ -27,8 +27,8 @@ WIN = '_wn_'
 LOSE = '_ls_'
 DRAW = '_drw_'
 NORESULT = '_nr_'
-PLAYER = '_p_'
-BOT = '_bt_'
+PLAYER = 1
+BOT = 2
  
 class BUTTON:
     def __init__(self, image, position):
@@ -172,16 +172,21 @@ class GAME: #option: 33 or 55 or 77
         self.clientPiece = piece
         self.botPiece = 'o' if piece == 'x' else 'x'
         self.isEnd = False
-        self.states = None
 
         if option == MODE_3X3:
             self.squarePerRow_g = 3
+            self.criWin = 4
+            self.depth = float(inf)
             display_surface.blit(gameBackground33_img, (0, 0))
         elif option == MODE_5X5:
             self.squarePerRow_g = 5
+            self.criWin = 5
+            self.depth = 5
             display_surface.blit(gameBackground55_img, (0, 0))
         elif option == MODE_7X7:
             self.squarePerRow_g = 7
+            self.criWin = 6
+            self.depth = 5
             display_surface.blit(gameBackground77_img, (0, 0))
         pygame.display.update()
 
@@ -205,7 +210,7 @@ class GAME: #option: 33 or 55 or 77
     def running(self):
         click = False
         gameRunning = True
-        if self.botPiece == 'o':
+        if self.botPiece == 'x':
             self.botTurn()
         while gameRunning:
             mx, my = pygame.mouse.get_pos()
@@ -271,141 +276,133 @@ class GAME: #option: 33 or 55 or 77
         self.add_a_chess(self.botPiece, square, BOT)
 
     def AlphaBetaSearch(self):
-        isSame, pos = self.checkTheSamePath(self.board, self.states)
-        if isSame:
-            return pos
-
-        self.states = [None, None, self.board.copy(), None]
-
         a = float(-inf) # Alpha
         b = float(inf) # Beta
+        curDepth = 0
 
-        maxVar, ns = self.maxValue(self.states, a, b)
-        self.states = ns
+        maxVar, x, y = self.maxValue(self.board, None, None, a, b, curDepth)
+        if x == None or y == None:
+            print("Error: x = None or y = None")
 
-        return (self.states[-1][0], self.states[-1][1])
+        return (x, y)
 
-    def checkTheSamePath(self, curState, checkState):
-        if checkState == None:
-            return (False, None)
-        if (curState == checkState[2]).all():
-            if(checkState[-1][0] != None):
-                return (True, (checkState[-1][0], checkState[-1][1]))
-        else:
-            return self.checkTheSamePath(curState, checkState[3])
-
-    def maxValue(self, curState, a, b):
-        if curState[0] != None and curState[1] != None:
-            if self.checkWin(curState[2], curState[0], curState[1], PLAYER) == WIN:
-                return (-10, curState)
-            elif self.checkWin(curState[2], curState[0], curState[1], PLAYER) == DRAW:
-                return (0, curState)
-                
+    def maxValue(self, curState, x, y, a, b, curDepth):
+        if x != None:
+            result = self.checkWin(curState, x, y, PLAYER)
+            if result == WIN:
+                return (-10, x, y)
+            elif result == DRAW:
+                return (0, x, y)
+            elif curDepth == self.depth:
+                return (0, x, y)
         var = float(-inf)
+        rx, ry = None, None
 
-        for ir, row in enumerate(curState[2]):
+        for ir, row in enumerate(curState):
             for ic, col in enumerate(row):
-                if(curState[2][ir][ic] == 0):
-                    state = curState[2].copy()
-                    state[ir][ic] = 2
-
-                    levelState = [ir, ic, state, None]
-                    maxVar, ns = self.minValue(levelState, a, b)
+                if(curState[ir][ic] == 0):
+                    curState[ir][ic] = 2
+                    curDepth += 1
+                    maxVar, maxx, maxy = self.minValue(curState, ir, ic, a, b, curDepth)
+                    curState[ir][ic] = 0
+                    curDepth -= 1
 
                     if maxVar > var:
                         var = maxVar
-                        curState[-1] = ns
+                        rx, ry = ir, ic
                     if var >= b:
-                        return (var, curState)
-                    if var > a:
-                        a = var
+                        return (var, rx, ry)
+                    a = max(var, a)
           
-        return (var, curState)
+        return (var, rx, ry)
 
-    def minValue(self, curState, a, b):
-        if self.checkWin(curState[2], curState[0], curState[1], BOT) == WIN:
-            return (10, curState)
-        elif self.checkWin(curState[2], curState[0], curState[1], BOT) == DRAW:
-            return (0, curState)
+    def minValue(self, curState, x, y, a, b, curDepth):
+        result = self.checkWin(curState, x, y, BOT)
+        if result == WIN:
+            self.foundedPath = True
+            return (10, x, y)
+        elif result == DRAW:
+            return (0, x, y)
+        elif curDepth == self.depth:
+            return (0, x, y)
 
         var = float(inf)
+        rx, ry = None, None
 
-        for ir, row in enumerate(curState[2]):
+        for ir, row in enumerate(curState):
             for ic, col in enumerate(row):
-                if(curState[2][ir][ic] == 0):
-                    state = curState[2].copy()
-                    state[ir][ic] = 1
-
-                    levelState = [ir, ic, state, None]
-                    minVar, ns = self.maxValue(levelState, a, b)
+                if(curState[ir][ic] == 0):
+                    curState[ir][ic] = 1
+                    curDepth += 1
+                    minVar, maxx, maxy = self.maxValue(curState, ir, ic, a, b, curDepth)
+                    curState[ir][ic] = 0
+                    curDepth -= 1
 
                     if minVar < var:
                         var = minVar
-                        curState[-1] = ns
+                        rx, ry = ir, ic
                     if var <= a:
-                        return (var, curState)
-                    if var < b:
-                        b = var
+                        return (var, rx, ry)
+                    b = min(var, b)
 
-        return (var, curState)
+        return (var, rx, ry)
 
 
     #Check win - draw - lose
     def checkWin(self, checkBoard, x, y, who):
-        piece = 1 if who == PLAYER else 2
         # Check collumn
         count = 0
         i, j = x, y
-        while(i < self.squarePerRow_g and checkBoard[i][j] == piece):
+        while(i < self.squarePerRow_g and checkBoard[i][j] == who):
             count += 1
             i += 1
         i = x
-        while(i >= 0 and checkBoard[i][j] == piece):
+        while(i >= 0 and checkBoard[i][j] == who):
             count += 1
             i -= 1
-        if count >= 4:
+        if count >= self.criWin:
             return WIN
 
         # Check row
         count = 0
         i, j = x, y
-        while(j < self.squarePerRow_g and checkBoard[i][j] == piece):
+        while(j < self.squarePerRow_g and checkBoard[i][j] == who):
             count += 1
             j += 1
         j = y
-        while(j >= 0 and checkBoard[i][j] == piece):
+        while(j >= 0 and checkBoard[i][j] == who):
             count += 1
             j -= 1
-        if count >= 4:
+        if count >= self.criWin:
             return WIN
         # check cheo phai
         count = 0
         i, j = x, y
-        while(i >= 0 and j < self.squarePerRow_g and checkBoard[i][j] == piece):
+        while(i >= 0 and j < self.squarePerRow_g and checkBoard[i][j] == who):
             count += 1
             i -= 1
             j += 1
 
         i, j = x, y
-        while(i < self.squarePerRow_g and j >= 0 and checkBoard[i][j] == piece):
+        while(i < self.squarePerRow_g and j >= 0 and checkBoard[i][j] == who):
             count += 1
             i += 1
             j -= 1
-        if count >= 4:
+        if count >= self.criWin:
             return WIN
         # check cheo trai
         count = 0
         i, j = x, y
-        while(i < self.squarePerRow_g and j < self.squarePerRow_g and checkBoard[i][j] == piece):
+        while(i < self.squarePerRow_g and j < self.squarePerRow_g and checkBoard[i][j] == who):
             count += 1
             i += 1
             j += 1
         i, j = x, y
-        while(i >= 0 and j >= 0 and checkBoard[i][j] == piece):
+        while(i >= 0 and j >= 0 and checkBoard[i][j] == who):
             count += 1
             i -= 1
             j -= 1
-        if count >= 4:
+        if count >= self.criWin:
             return WIN
 
         #check draw
